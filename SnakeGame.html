@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game 2.0, Made by guest05</title>
+    <link href="https://fonts.googleapis.com/css2?family=Caesar+Dressing&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+            width: 600px;
+            height: 600px;
+        }
+        #gameCanvas {
+            border: 2px solid #000;
+        }
+        #settingsButton {
+            position: absolute;
+            top: 10px;
+            right: -50px;
+            width: 40px;
+            height: 40px;
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid black;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+        }
+        #settingsPopup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        #closeSettings {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+        }
+        #backgroundUpload, #soundUpload, #colorPicker, #debugMode {
+            margin-top: 10px;
+        }
+        #scoreDisplay {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            font-family: 'Comic Sans MS', cursive;
+            font-size: 24px;
+            -webkit-text-stroke: 1px black;
+            color: white;
+        }
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+        #startScreen h1 {
+            font-family: 'Caesar Dressing', cursive;
+            font-size: 48px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        #startButton {
+            font-family: 'Caesar Dressing', cursive;
+            font-size: 24px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f0f;
+            opacity: 0;
+            transition: all 3s ease-out;
+        }
+        #debugWindow {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: move;
+            display: none;
+        }
+        #debugWindow h3 {
+            margin-top: 0;
+        }
+        #debugWindow .close {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+        }
+        #debugWindow .footer {
+            font-size: 10px;
+            text-align: right;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div id="settingsButton">⚙️</div>
+        <div id="scoreDisplay">Score: 0 | Level: 1</div>
+        <div id="startScreen">
+            <h1>Snake Game</h1>
+            <button id="startButton">Le game.</button>
+        </div>
+    </div>
+    <div id="settingsPopup">
+        <span id="closeSettings">&times;</span>
+        <h3>Settings</h3>
+        <div id="backgroundUpload">
+            <label for="backgroundImage">Upload Background Image:</label>
+            <input type="file" id="backgroundImage" accept="image/*">
+        </div>
+        <div id="soundUpload">
+            <label for="eatSound">Upload Eat Sound:</label>
+            <input type="file" id="eatSound" accept="audio/*">
+        </div>
+        <div id="colorPicker">
+            <label for="snakeColor">Snake Color:</label>
+            <input type="color" id="snakeColor" value="#00FF00">
+        </div>
+        <div id="debugMode">
+            <label for="debugToggle">Debug Mode:</label>
+            <input type="checkbox" id="debugToggle">
+        </div>
+    </div>
+    <div id="debugWindow">
+        <span class="close">&times;</span>
+        <h3>Cheater cheater pumpkin eater.. imagine turning on god mode on a snake game, couldnt be me fr.</h3>
+        <div class="footer">-guest05.. the dev, also thanks to the testers</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const gridSize = 30;
+        const tileCount = 20;
+        let snake = [{ x: 10, y: 10 }];
+        let food = { x: 15, y: 15 };
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let level = 1;
+        let backgroundImage = null;
+        let gameSpeed = 100;
+        let gameInterval;
+        let eatSound = null;
+        let gameRunning = false;
+        let snakeColor = "#00FF00";
+        let debugMode = false;
+
+        function drawGame() {
+            clearCanvas();
+            moveSnake();
+            drawSnake();
+            drawFood();
+            checkCollision();
+            drawScore();
+        }
+
+        function clearCanvas() {
+            if (backgroundImage) {
+                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, "white");
+                gradient.addColorStop(1, "rgba(0, 0, 0, 0.2)");
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function moveSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            if (debugMode) {
+                head.x = (head.x + tileCount) % tileCount;
+                head.y = (head.y + tileCount) % tileCount;
+            }
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                if (score % 10 === 0) {
+                    createConfetti(food.x * gridSize, food.y * gridSize);
+                }
+                if (eatSound) {
+                    eatSound.play();
+                }
+                updateLevel();
+                generateFood();
+            } else {
+                snake.pop();
+            }
+        }
+
+        function drawSnake() {
+            ctx.fillStyle = snakeColor;
+            snake.forEach(segment => {
+                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+        }
+
+        function generateFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+        }
+
+        function checkCollision() {
+            if (!debugMode) {
+                if (
+                    snake[0].x < 0 || snake[0].x >= tileCount ||
+                    snake[0].y < 0 || snake[0].y >= tileCount ||
+                    snake.slice(1).some(segment => segment.x === snake[0].x && segment.y === snake[0].y)
+                ) {
+                    gameOver();
+                }
+            }
+        }
+
+        function gameOver() {
+            alert(`Game Over! Your score: ${score}`);
+            resetGame();
+            showStartScreen();
+        }
+
+        function drawScore() {
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            scoreDisplay.textContent = `Score: ${score} | Level: ${level}`;
+        }
+
+        function updateLevel() {
+            const newLevel = Math.floor(score / 10) + 1;
+            if (newLevel !== level && newLevel <= 100) {
+                level = newLevel;
+                gameSpeed = Math.max(30, Math.floor(100 / (1 + (level - 1) * 0.3)));
+                clearInterval(gameInterval);
+                gameInterval = setInterval(drawGame, gameSpeed);
+            }
+        }
+
+        function resetGame() {
+            snake = [{ x: 10, y: 10 }];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            level = 1;
+            gameSpeed = 100;
+            clearInterval(gameInterval);
+            drawScore();
+        }
+
+        function createConfetti(x, y) {
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = `${x + Math.random() * 20 - 10}px`;
+                confetti.style.top = `${y + Math.random() * 20 - 10}px`;
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                document.body.appendChild(confetti);
+
+                setTimeout(() => {
+                    confetti.style.transform = `translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px) rotate(${Math.random() * 360}deg)`;
+                    confetti.style.opacity = '1';
+                }, 0);
+
+                setTimeout(() => {
+                    confetti.remove();
+                }, 3000);
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (dy === 0) { dx = 0; dy = -1; }
+                    break;
+                case 'ArrowDown':
+                    if (dy === 0) { dx = 0; dy = 1; }
+                    break;
+                case 'ArrowLeft':
+                    if (dx === 0) { dx = -1; dy = 0; }
+                    break;
+                case 'ArrowRight':
+                    if (dx === 0) { dx = 1; dy = 0; }
+                    break;
+            }
+        });
+
+        // Settings popup
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsPopup = document.getElementById('settingsPopup');
+        const closeSettings = document.getElementById('closeSettings');
+        const backgroundImageInput = document.getElementById('backgroundImage');
+        const eatSoundInput = document.getElementById('eatSound');
+        const snakeColorInput = document.getElementById('snakeColor');
+        const debugToggle = document.getElementById('debugToggle');
+        const debugWindow = document.getElementById('debugWindow');
+
+        settingsButton.addEventListener('click', () => {
+            settingsPopup.style.display = 'block';
+        });
+
+        closeSettings.addEventListener('click', () => {
+            settingsPopup.style.display = 'none';
+        });
+
+        backgroundImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        backgroundImage = img;
+                    }
+                    img.src = event.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        eatSoundInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    eatSound = new Audio(event.target.result);
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        snakeColorInput.addEventListener('change', (e) => {
+            snakeColor = e.target.value;
+        });
+
+        debugToggle.addEventListener('change', (e) => {
+            debugMode = e.target.checked;
+            debugWindow.style.display = debugMode ? 'block' : 'none';
+        });
+
+        // Debug window drag functionality
+        let isDragging = false;
+        let dragOffsetX, dragOffsetY;
+
+        debugWindow.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragOffsetX = e.clientX - debugWindow.offsetLeft;
+            dragOffsetY = e.clientY - debugWindow.offsetTop;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                debugWindow.style.left = (e.clientX - dragOffsetX) + 'px';
+                debugWindow.style.top = (e.clientY - dragOffsetY) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        debugWindow.querySelector('.close').addEventListener('click', () => {
+            debugWindow.style.display = 'none';
+            debugToggle.checked = false;
+            debugMode = false;
+        });
+
+        // Allow drag and drop for background image
+        canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        backgroundImage = img;
+                    }
+                    img.src = event.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Start screen
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+
+        function showStartScreen() {
+            startScreen.style.display = 'flex';
+            gameRunning = false;
+        }
+
+        function hideStartScreen() {
+            startScreen.style.display = 'none';
+            gameRunning = true;
+        }
+
+        startButton.addEventListener('click', () => {
+            hideStartScreen();
+            resetGame();
+            gameInterval = setInterval(drawGame, gameSpeed);
+        });
+
+        // Initial setup
+        showStartScreen();
+        drawGame();
+    </script>
+</body>
+</html>
